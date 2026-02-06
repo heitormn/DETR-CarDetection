@@ -100,7 +100,6 @@ class RTDetrTrainer(Trainer):
 
 
 
-
 CONFIG_PATH_MODEL = Path(__file__).resolve().parent.parent / "configs" / "model.yaml"
 CONFIG_PATH_TRAIN = Path(__file__).resolve().parent.parent / "configs" / "train.yaml"
 PROCESSED_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "processed"

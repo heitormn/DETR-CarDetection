@@ -382,6 +382,150 @@ def visualize_comparison(
     plt.close()
 
 
+def print_pr_curve_and_map_per_class(
+    model,
+    processor,
+    split_dir: Path,
+    top_k_per_image: int = 100,
+    iou_threshold: float = 0.5,
+    max_samples: int = None,
+    device: str = None,
+    use_coco_mapping: bool = False,
+    save_path: Path = None
+):
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    images_dir = split_dir / "images"
+    annotations_file = split_dir / "annotations.json"
+    with open(annotations_file, "r") as f:
+        annotations = json.load(f)
+
+    image_ids = list(annotations.keys())
+    if max_samples is not None:
+        image_ids = image_ids[:max_samples]
+
+    model = model.to(device)
+    model.eval()
+
+    preds_by_class = {c: [] for c in CLASS_NAMES.keys()}
+    gts_by_image_class = {}
+
+    for image_id in image_ids:
+        image_path = images_dir / image_id
+        image = Image.open(image_path).convert("RGB")
+
+        ann = annotations[image_id]
+        gts_by_image_class[image_id] = {c: [] for c in CLASS_NAMES.keys()}
+        for label, box in zip(ann["labels"], ann["boxes"]):
+            gts_by_image_class[image_id][label].append(box)
+
+        inputs = processor(images=image, return_tensors="pt")
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        with torch.no_grad():
+            outputs = model(**inputs)
+
+        logits = outputs.logits[0]
+        scores = torch.sigmoid(logits)
+        max_scores, max_classes = scores.max(dim=-1)
+
+        top_k = min(top_k_per_image, max_scores.numel())
+        topk_scores, topk_indices = max_scores.topk(top_k)
+        topk_classes = max_classes[topk_indices]
+        topk_boxes = outputs.pred_boxes[0][topk_indices]
+
+        cx, cy, w, h = topk_boxes.unbind(-1)
+        boxes_xyxy = torch.stack([
+            (cx - 0.5 * w).cpu(),
+            (cy - 0.5 * h).cpu(),
+            (cx + 0.5 * w).cpu(),
+            (cy + 0.5 * h).cpu(),
+        ], dim=-1).numpy()
+
+        for score, cls, box in zip(topk_scores.cpu().numpy(), topk_classes.cpu().numpy(), boxes_xyxy):
+            cls_id = int(cls)
+            if use_coco_mapping:
+                if cls_id not in COCO_TO_KITTI:
+                    continue
+                cls_id = COCO_TO_KITTI[cls_id]
+
+            if cls_id in preds_by_class:
+                preds_by_class[cls_id].append({
+                    "image_id": image_id,
+                    "score": float(score),
+                    "box": box.tolist(),
+                })
+
+    per_class_ap = {}
+    pr_curves = {}
+
+    for cls_id in CLASS_NAMES.keys():
+        preds = sorted(preds_by_class[cls_id], key=lambda x: x["score"], reverse=True)
+        npos = sum(len(gts_by_image_class[img_id][cls_id]) for img_id in gts_by_image_class)
+        if npos == 0:
+            continue
+
+        tp = np.zeros(len(preds))
+        fp = np.zeros(len(preds))
+        used = {img_id: np.zeros(len(gts_by_image_class[img_id][cls_id])) for img_id in gts_by_image_class}
+
+        for i, pred in enumerate(preds):
+            img_id = pred["image_id"]
+            gt_boxes = gts_by_image_class[img_id][cls_id]
+            if len(gt_boxes) == 0:
+                fp[i] = 1
+                continue
+
+            ious = [
+                _xyxy_iou(pred["box"], gt_box)
+                for gt_box in gt_boxes
+            ]
+            best_iou = max(ious) if ious else 0.0
+            best_idx = int(np.argmax(ious)) if ious else -1
+
+            if best_iou >= iou_threshold and used[img_id][best_idx] == 0:
+                tp[i] = 1
+                used[img_id][best_idx] = 1
+            else:
+                fp[i] = 1
+
+        tp_cum = np.cumsum(tp)
+        fp_cum = np.cumsum(fp)
+        recalls = tp_cum / max(npos, 1)
+        precisions = tp_cum / np.maximum(tp_cum + fp_cum, 1)
+        ap = _compute_ap(recalls, precisions)
+
+        per_class_ap[CLASS_NAMES[cls_id]] = ap
+        pr_curves[CLASS_NAMES[cls_id]] = {
+            "recall": recalls,
+            "precision": precisions,
+        }
+
+    print("\nPer-class AP:")
+    for class_name, ap in per_class_ap.items():
+        print(f"  {class_name}: {ap:.4f}")
+
+    plt.figure(figsize=(7, 6))
+    for class_name, curve in pr_curves.items():
+        plt.plot(curve["recall"], curve["precision"], label=class_name)
+
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title(f"PR Curves (IoU={iou_threshold})")
+    plt.xlim(0, 1)
+    plt.ylim(0, 1)
+    plt.grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
+    plt.legend()
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight", dpi=150)
+        print(f"Saved PR curve: {save_path}")
+    else:
+        plt.show()
+
+    plt.close()
+
+
 def analyze_sample(
     idx: int = None,
     threshold: float = 0.5,

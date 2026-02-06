@@ -1,0 +1,33 @@
+data:
+  train_val_split: 0.2  # Percentage of training data to use for validation
+
+training:
+  # Batch and epochs
+  batch_size: 8
+  epochs: 20
+  gradient_accumulation_steps: 4  # Effective batch size = 8 * 4 = 32
+  
+  # Learning rates
+  # Higher LR for head (needs to learn from scratch), lower for backbone (pretrained)
+  learning_rate: 1e-4       # Learning rate for classification/box heads
+  backbone_lr_factor: 0.1   # Backbone LR = learning_rate * 0.1 = 1e-5
+  
+  # Scheduler and warmup
+  warmup_ratio: 0.1       
+  lr_scheduler_type: "cosine"
+  
+  # Regularization
+  weight_decay: 0.0001
+  max_grad_norm: 0.1        # Lower gradient clipping for stability
+  
+  # Evaluation and saving
+  eval_strategy: "epoch"
+  save_strategy: "epoch"
+  logging_steps: 50
+  report_to: "none"
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  save_total_limit: 3
+  
+  # Performance
+  num_workers: 4

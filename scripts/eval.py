@@ -5,7 +5,6 @@ Computes simple mAP metrics and compares fine-tuned vs base model.
 import json
 from pathlib import Path
 import numpy as np
-import matplotlib.pyplot as plt
 from PIL import Image
 import torch
 from transformers import RTDetrForObjectDetection, RTDetrImageProcessor
