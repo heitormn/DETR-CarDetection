@@ -45,6 +45,8 @@ env/
 reports/*.png
 reports/*.jpg
 reports/*.pdf
+results/
+
 
 # Logs
 *.log
