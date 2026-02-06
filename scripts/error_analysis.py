@@ -11,6 +11,7 @@ import matplotlib.patches as patches
 from PIL import Image
 import torch
 from transformers import RTDetrForObjectDetection, RTDetrImageProcessor
+from eval import _compute_ap, _xyxy_iou
 
 
 # Paths
@@ -458,6 +459,7 @@ def print_pr_curve_and_map_per_class(
 
     per_class_ap = {}
     pr_curves = {}
+    best_thresholds = {}
 
     for cls_id in CLASS_NAMES.keys():
         preds = sorted(preds_by_class[cls_id], key=lambda x: x["score"], reverse=True)
@@ -495,15 +497,27 @@ def print_pr_curve_and_map_per_class(
         precisions = tp_cum / np.maximum(tp_cum + fp_cum, 1)
         ap = _compute_ap(recalls, precisions)
 
-        per_class_ap[CLASS_NAMES[cls_id]] = ap
-        pr_curves[CLASS_NAMES[cls_id]] = {
+        class_name = CLASS_NAMES[cls_id]
+        per_class_ap[class_name] = ap
+        pr_curves[class_name] = {
             "recall": recalls,
             "precision": precisions,
         }
 
+        # Best threshold by max F1
+        f1 = (2 * precisions * recalls) / np.maximum(precisions + recalls, 1e-12)
+        best_idx = int(np.argmax(f1)) if len(f1) > 0 else None
+        if best_idx is not None and len(preds) > 0:
+            best_thresholds[class_name] = float(preds[best_idx]["score"])
+
     print("\nPer-class AP:")
     for class_name, ap in per_class_ap.items():
         print(f"  {class_name}: {ap:.4f}")
+
+    if best_thresholds:
+        print("\nBest threshold by F1 (per class):")
+        for class_name, thr in best_thresholds.items():
+            print(f"  {class_name}: {thr:.6f}")
 
     plt.figure(figsize=(7, 6))
     for class_name, curve in pr_curves.items():
@@ -629,16 +643,46 @@ if __name__ == "__main__":
                         help="Path to specific checkpoint")
     parser.add_argument("--pretrained", action="store_true",
                         help="Use COCO-pretrained model with class mapping instead of fine-tuned")
+    parser.add_argument("--pr", action="store_true",
+                        help="Print per-class AP and plot PR curves")
+    parser.add_argument("--pr-iou", type=float, default=0.5,
+                        help="IoU threshold for PR curves")
+    parser.add_argument("--pr-top-k", type=int, default=100,
+                        help="Top-k predictions per image for PR curves")
+    parser.add_argument("--pr-max-samples", type=int, default=None,
+                        help="Limit number of validation images for PR curves")
+    parser.add_argument("--max-samples", type=int, default=None,
+                        help="Alias for --pr-max-samples")
+    parser.add_argument("--pr-save", type=str, default=None,
+                        help="Path to save PR curve plot")
     
     args = parser.parse_args()
     
-    # Run analysis
-    result = analyze_sample(
-        idx=args.idx,
-        threshold=args.threshold,
-        save_path=Path(args.save) if args.save else None,
-        show=not args.no_show,
-        checkpoint_path=Path(args.checkpoint) if args.checkpoint else None,
-        use_pretrained=args.pretrained,
-        top_k=args.top_k
-    )
+    if args.pr:
+        if args.max_samples is not None and args.pr_max_samples is None:
+            args.pr_max_samples = args.max_samples
+        model, processor, is_pretrained = load_model_and_processor(
+            checkpoint_path=Path(args.checkpoint) if args.checkpoint else None,
+            use_pretrained=args.pretrained
+        )
+        print_pr_curve_and_map_per_class(
+            model,
+            processor,
+            PROCESSED_DATA_DIR / "val",
+            top_k_per_image=args.pr_top_k,
+            iou_threshold=args.pr_iou,
+            max_samples=args.pr_max_samples,
+            use_coco_mapping=is_pretrained,
+            save_path=Path(args.pr_save) if args.pr_save else None
+        )
+    else:
+        # Run analysis
+        result = analyze_sample(
+            idx=args.idx,
+            threshold=args.threshold,
+            save_path=Path(args.save) if args.save else None,
+            show=not args.no_show,
+            checkpoint_path=Path(args.checkpoint) if args.checkpoint else None,
+            use_pretrained=args.pretrained,
+            top_k=args.top_k
+        )

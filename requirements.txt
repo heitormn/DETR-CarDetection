@@ -6,3 +6,5 @@ Pillow
 tqdm
 numpy
 matplotlib
+torchvision
+cv2
