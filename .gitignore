@@ -42,10 +42,6 @@ env/
 # Model checkpoints and outputs
 *.pth
 *.ckpt
-reports/*.png
-reports/*.jpg
-reports/*.pdf
-results/
 
 
 # Logs
@@ -55,4 +51,3 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
-results/

@@ -1,3 +1,4 @@
 data/videos/*.mp4 filter=lfs diff=lfs merge=lfs -text
 reports/*.mp4 filter=lfs diff=lfs merge=lfs -text
+reports/preview.mp4 -filter -diff -merge -text
 results/** filter=lfs diff=lfs merge=lfs -text
