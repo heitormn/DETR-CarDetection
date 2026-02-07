@@ -51,22 +51,6 @@ python train.py
 Checkpoints are saved to:
 results/
 
-## Download Model (Hugging Face)
-
-Template (fill in your repo and file names):
-
-```bash
-pip install -q huggingface_hub
-python -c "from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='YOUR_USER/YOUR_MODEL', filename='YOUR_CHECKPOINT_FILE')"
-```
-
-Expected checkpoint structure:
-
-```
-results/
-	checkpoint-XXXX/
-```
-
 ## Evaluation (mAP)
 
 Overall mAP for fine-tuned checkpoint and base model:
