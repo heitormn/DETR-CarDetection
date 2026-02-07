@@ -30,6 +30,17 @@ data/processed/test
 
 ## Train
 
+Training configuration:
+The defaults live in [configs/train.yaml](configs/train.yaml)
+
+- **Batch size:** 8 with `gradient_accumulation_steps=4` (effective batch size 32).
+- **Learning rate:** 1e-4 for the head, with `backbone_lr_factor=0.1` for the backbone.
+- **Scheduler:** cosine with `warmup_ratio=0.1`.
+- **Regularization:** `weight_decay=1e-4`, `max_grad_norm=0.1`.
+- **Checkpointing:** eval/save each epoch, keep the best model by eval loss.
+
+The model head is reinitialized for 3 classes (Xavier init + prior bias) so it learns quickly from scratch while preserving pretrained features in the backbone.
+
 Training:
 
 ```bash
@@ -104,24 +115,14 @@ python error_analysis.py --pr --pr-save pr_curve.png
 
 This saves the PR curve plot in the current directory.
 
-## Training Configuration
-
-The defaults live in [configs/train.yaml](configs/train.yaml):
-
-- **Batch size:** 8 with `gradient_accumulation_steps=4` (effective batch size 32).
-- **Learning rate:** 1e-4 for the head, with `backbone_lr_factor=0.1` for the backbone.
-- **Scheduler:** cosine with `warmup_ratio=0.1`.
-- **Regularization:** `weight_decay=1e-4`, `max_grad_norm=0.1`.
-- **Checkpointing:** eval/save each epoch, keep the best model by eval loss.
-
-The model head is reinitialized for 3 classes (Xavier init + prior bias) so it learns quickly from scratch while preserving pretrained features in the backbone.
-
 ## Results
 
-- mAP@0.5: TBD
-- mAP@0.5:0.95: TBD
-- PR curve: TBD
-- Video threshold: TBD
+- mAP@0.5: 0.7684 (Compared to 0.4581 from the base model)
+- mAP@0.5:0.95: 0.4475 (Compared from 0.2430 from the base model)
+
+
+We can also see the precision-recall curve:
+![Precision-recall curve](reports/Figure_1.png)
 
 ## Video
 
@@ -129,15 +130,16 @@ Run inference on a video from data/videos and save output to reports/:
 
 ```bash
 cd scripts
-python demo_video.py --threshold 0.054
+python demo_video.py --threshold 0.045
 ```
 
 Optional arguments:
 
 ```bash
-python demo_video.py --video ../data/videos/your_video.mp4 --threshold 0.054
+python demo_video.py --video ../data/videos/your_video.mp4 --threshold 0.045
 python demo_video.py --checkpoint ../results/checkpoint-XXXX --output ../reports/out.mp4
-python demo_video.py --threshold 0.054 --show-score
+python demo_video.py --threshold 0.045 --show-score
 ```
 
-Add your final demo video link here.
+The video below was created using a threshold of 0.045 after analyzing the precision–recall curve.
+[reports/4644481-uhd_2562_1440_30fps_pred.mp4](reports/4644481-uhd_2562_1440_30fps_pred.mp4)

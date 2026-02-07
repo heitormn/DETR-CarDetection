@@ -64,8 +64,8 @@ def _score_logits(logits: torch.Tensor, use_focal_loss: bool) -> tuple[torch.Ten
 
 
 def _display_percent(score: float) -> float:
-	# Map 0.054 -> 0.80 and 0.12 -> 1.00, cap to [0, 1]
-	low_score = 0.054
+	# Map 0.04 -> 0.80 and 0.12 -> 1.00, cap to [0, 1]
+	low_score = 0.04
 	high_score = 0.12
 	if score <= low_score:
 		return max(0.0, (score / low_score) * 0.8)
