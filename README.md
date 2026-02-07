@@ -144,4 +144,4 @@ python demo_video.py --threshold 0.045 --show-score
 The video below was created using a threshold of 0.045 after analyzing the precision–recall curve.
 
 Preview (trimmed for GitHub):
-<video controls src="reports/preview.mp4" width="720"></video>
+![Preview video](reports/preview.gif)
